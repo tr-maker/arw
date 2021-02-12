@@ -1,13 +1,14 @@
 """
 Read in a pickle containing the stationary distribution for the ARW on a connected simple graph with one sink vertex.
-Print and analyze the stationary distribution.
+Analyze the stationary distribution.
 
 External dependencies: a pickle, typically from stationary_dist.py
-The pickle containing a list of stable states and a list of probabilities for each state.
+The pickle contains a list of stable states and a list of probabilities for each state.
 """
 import sympy
 import pickle
 from itertools import combinations
+import os
 
 
 def joint_intensities(k, sd):
@@ -51,54 +52,60 @@ def joint_intensities(k, sd):
     return joint_int
 
 
-# Read in the computation of the stationary distribution from a pickle.
-# Change the name of the pickle as necessary!
-with open('4-clique.pickle', 'rb') as inf:  # Change the name of the pickle as necessary
-    sd = pickle.loads(inf.read())
-(states, dist) = sd
+def my_pretty(frac):
+    """
+    Write a symbolic rational function as a pretty string that can be printed.
+    :param frac: A rational function.
+    :type frac: A symbolic rational function.
+    :return: A pretty version of the input.
+    :rtype: A string.
+    """
+    num, denom = sympy.fraction(sympy.factor(frac))
+    return sympy.pretty(num) + "\n" + "/\n" + sympy.pretty(denom) + "\n\n\n\n\n"
 
-# Print the stationary distribution.
-sympy.pprint(states)
-for s in dist:
-    # num, denom = sympy.fraction(s)
-    # sympy.pprint(sympy.factor(num))
-    # sympy.pprint(sympy.factor(denom))
-    # print(sympy.latex(sympy.factor(num)))
-    # print(sympy.latex(sympy.factor(denom)))
-    print(sympy.latex(s))
-    print()
-print()
 
-# The following example shows that the stationary distribution is not a determinantal process in the states.
-# It requires a graph with 4 vertices.
-dist = dist.subs([(sympy.symbols('q_0'), 0.5), (sympy.symbols('q_1'), 0.5), (sympy.symbols('q_2'), 0.5)])
-sd = (states, dist)
-dpp_mat = sympy.zeros(3)
-# The diagonal entries of the kernel are determined by the 1-point joint intensities.
-[dpp_mat[0, 0], dpp_mat[1, 1], dpp_mat[2, 2]] = joint_intensities(1, sd)
-# The off-diagonal entries of the kernel are determined up to sign by the 2-point joint intensities.
-# We pick all positive signs first.
-joint_int_2 = joint_intensities(2, sd)
-[dpp_mat[0, 1], dpp_mat[0, 2], dpp_mat[1, 2]] = [sympy.sqrt(dpp_mat[0, 0] * dpp_mat[1, 1] - joint_int_2[0]),
-                                                 sympy.sqrt(dpp_mat[0, 0] * dpp_mat[2, 2] - joint_int_2[1]),
-                                                 sympy.sqrt(dpp_mat[1, 1] * dpp_mat[2, 2] - joint_int_2[2])]
-[dpp_mat[1, 0], dpp_mat[2, 0], dpp_mat[2, 1]] = [dpp_mat[0, 1], dpp_mat[0, 2], dpp_mat[1, 2]]
-# sympy.pprint(dpp_mat[0, 0] * dpp_mat[1, 1] * dpp_mat[2, 2] - dpp_mat[0, 0] * dpp_mat[1, 2] * dpp_mat[2, 1]
-#             - dpp_mat[0, 1] * dpp_mat[1, 0] * dpp_mat[2, 2] + dpp_mat[0, 1] * dpp_mat[1, 2] * dpp_mat[2, 0]
-#             + dpp_mat[0, 2] * dpp_mat[1, 0] * dpp_mat[2, 1] - dpp_mat[0, 2] * dpp_mat[1, 1] * dpp_mat[2, 0])
-# For the stationary distribution to be determinantal, the determinant of the 3x3 kernel must equal the 3-point joint
-# intensity.
-sympy.pprint(sympy.N(dpp_mat.det()))
-sympy.pprint(sympy.N(joint_intensities(3, sd)[0]))
-# We pick a different choice of signs for the off-diagonal entries.
-# For determinant of a symmetric 3x3 matrix, it does not matter which off-diagonal entry (and its symmetric
-# counterpart) we make negative. Furthermore, making any two off-diagonal entries (and their symmetric counterparts)
-# negative is equivalent to the original matrix, and making all off-diagonal entries negative is equivalent to making
-# just one off-diagonal entry (and its symmetric counterpart) negative.
-[dpp_mat[0, 1], dpp_mat[0, 2], dpp_mat[1, 2]] = [-sympy.sqrt(dpp_mat[0, 0] * dpp_mat[1, 1] - joint_int_2[0]),
-                                                 sympy.sqrt(dpp_mat[0, 0] * dpp_mat[2, 2] - joint_int_2[1]),
-                                                 sympy.sqrt(dpp_mat[1, 1] * dpp_mat[2, 2] - joint_int_2[2])]
-# For the stationary distribution to be determinantal, the determinant of the 3x3 kernel must equal the 3-point joint
-# intensity.
-sympy.pprint(sympy.N(dpp_mat.det()))
-sympy.pprint(sympy.N(joint_intensities(3, sd)[0]))
+if __name__ == "__main__":
+    graph_name = "4-clique"  # Change the name as necessary
+    in_path = os.path.join(os.path.dirname(__file__), 'data/')
+    with open(in_path + graph_name + '.pickle', 'rb') as in_file:
+        sd = pickle.loads(inf.read())
+    (states, dist) = sd
+
+    out_path = os.path.join(os.path.dirname(__file__), 'data/')
+
+    # Output the stationary distribution when all sleep rates are the same.
+    univar = {k: sympy.symbols('q') for k in sympy.symbols(['q_{}'.format(x) for x in range(len(states[0]))])}
+    dist_univar = dist.subs(univar)
+    with open(out_path + graph_name + '-distribution-univar.txt', 'w') as out_file:
+        for prob in dist_univar:
+            out_file.write(my_pretty(prob))
+
+    # Output the one-point joint intensities (marginals) and pair correlations.
+    marginals = joint_intensities(1, sd)
+    with open(out_path + graph_name + '-marginals.txt', 'w') as out_file:
+        for marginal in marginals:
+            marginal = sympy.factor(marginal)
+            out_file.write(my_pretty(marginal))
+    joints = joint_intensities(2, sd)
+    correlations = [None] * len(joints)
+    with open(out_path + graph_name + '-correlations.txt', 'w') as out_file:
+        k = 0
+        for i in range(len(states[0])):
+            for j in range(i + 1, len(states[0])):
+                correlations[k] = sympy.factor(joints[k] - marginals[i] * marginals[j])
+                out_file.write(my_pretty(correlations[k]))
+                print("Correlations: finished entry " + str(k))
+                k += 1
+    # Output the one-point joint intensities (marginals) and pair correlations when all sleep rates are the same.
+    marginals_univar = [None] * len(marginals)
+    for i in range(len(marginals)):
+        marginals_univar[i] = marginals[i].subs(univar)
+    with open(out_path + graph_name + '-marginals-univar.txt', 'w') as out_file:
+        for marginal in marginals_univar:
+            out_file.write(my_pretty(marginal))
+    correlations_univar = [None] * len(correlations)
+    for i in range(len(correlations)):
+        correlations_univar[i] = correlations[i].subs(univar)
+    with open(out_path + graph_name + '-correlations-univar.txt', 'w') as out_file:
+        for correlation in correlations_univar:
+            out_file.write(my_pretty(correlation))

@@ -1,6 +1,11 @@
 """
-Compute the stationary distribution for the ARW on a connected simple graph with one sink vertex, and save the result
-as a pickle.
+Compute the stationary distribution for the ARW on a connected simple graph with one sink vertex.
+Save the result in a pickle file and in 3 plaintext files in the 'data' folder.
+One plaintext file ends in '-states.txt' and contains the stable states.
+Another plaintext file ends in '-distribution-latex.txt' and contains the LaTeX expressions for the probabilities that
+correspond to the stable states.
+The last plaintext file ends in '-distribution.txt' and contains a pretty version of the probabilities that
+correspond to the stable states.
 
 External dependencies: solver.py.
 """
@@ -10,11 +15,7 @@ import copy
 import solver
 import time
 import pickle
-# import signal
-
-
-# def signal_handler(signum, frame):
-#    raise OSError("Timed out!")
+import os
 
 
 def stationary_dist(a, sleep_probs):
@@ -55,14 +56,8 @@ def stationary_dist(a, sleep_probs):
     init_state_q = [1] * n
     init_state_q.append(0)
     q = deque([init_state_q])
-    # print(m)
-    # print(t)
-    # print(q)
-    # print('Initialized')
     while q:
         state = q.popleft()
-        # print('Popped')
-        # print(state)
         # Pick the vertex v to fire.
         # Fire the (only) vertex with 2 active particles; otherwise, fire the first vertex with 1 active particle.
         v = 0
@@ -77,7 +72,6 @@ def stationary_dist(a, sleep_probs):
                     break
                 v += 1
         if v == n:
-            # print('Absorbing state')
             # The state is absorbing.
             t_absorb_idx.append(state[n])
             m[state[n]][state[n]] = 1
@@ -89,11 +83,6 @@ def stationary_dist(a, sleep_probs):
 
                 # Consider the active particle trying to fall asleep (which leaves the state unchanged).
                 m[t_idx][t_idx] = sleep_probs[v]
-                # print(m)
-                # print(t)
-                # print(q)
-                # print('The vertex v has 2 active particles.')
-                # print('We considered the active particle at v trying to fall asleep.')
 
                 temp_state[v] = 1
                 # Consider the active particle at v jumping to a neighbor.
@@ -136,11 +125,6 @@ def stationary_dist(a, sleep_probs):
                                 row.append(0)
                             m.append([0] * len(t))
                         m[t_idx][new_idx] = (1 - sleep_probs[v]) / deg[v]
-                # print(m)
-                # print(t)
-                # print(q)
-                # print('The vertex v has 2 active particles.')
-                # print('We considered the neighbors of v.')
 
             if state[v] == 1:
                 # The vertex v has 1 active particle.
@@ -162,11 +146,6 @@ def stationary_dist(a, sleep_probs):
                         row.append(0)
                     m.append([0] * len(t))
                 m[t_idx][new_idx] = sleep_probs[v]
-                # print(m)
-                # print(t)
-                # print(q)
-                # print('The vertex v has 1 active particle.')
-                # print('We considered the active particle at v falling asleep.')
 
                 temp_state[v] = 0
                 # Consider the active particle at v jumping to a neighbor.
@@ -205,14 +184,6 @@ def stationary_dist(a, sleep_probs):
                                 row.append(0)
                             m.append([0] * len(t))
                         m[t_idx][new_idx] = (1 - sleep_probs[v]) / deg[v]
-                # print(m)
-                # print(t)
-                # print(q)
-                # print('The vertex v has 1 active particle.')
-                # print('We considered the neighbors of v.')
-    # print(m)
-    # print(t)
-    # print(t_absorb_idx)
 
     # From m, t, and t_absorb_idx, we can calculate the probabilities of ending up at each absorbing state.
     # the transition matrix between transient states
@@ -223,28 +194,14 @@ def stationary_dist(a, sleep_probs):
     m_trans_absorb = \
         sympy.Matrix([[row[j] for j in t_absorb_idx]
                       for row in [m[i] for i in range(len(m)) if i not in t_absorb_idx]])
-    # print(m_trans_trans)
-    # print(m_trans_absorb)
+
+    t0 = time.process_time()
+    print("Time to compute transition matrix: " + str(t0))
 
     # The probabilities of ending up at each absorbing state are given by the row vector
     # ((I - m_trans_trans)^T \ e1)^T * m_trans_absorb
     # The linear solve is the most time-consuming part of the program.
-
-    t0 = time.clock()
-    print("Time to compute transition matrix: " + str(t0))
-    # Linear solve using sympy.linsolve():
-    # e1 = sympy.zeros(len(t) - len(t_absorb_idx), 1)
-    # e1[0, 0] = 1
-    # dist = sympy.Matrix(*sympy.linsolve(((sympy.eye(len(t) - len(t_absorb_idx)) - m_trans_trans).T, e1))).T \
-    #    * m_trans_absorb
-    # Linear solve using sympy.solve():
-    # e1 = sympy.zeros(len(t) - len(t_absorb_idx), 1)
-    # e1[0, 0] = 1
-    # u = sympy.Matrix(sympy.symbols(['u_{}'.format(x) for x in range(len(t) - len(t_absorb_idx))]))
-    # sol = sympy.solve((sympy.eye(len(t) - len(t_absorb_idx)) - m_trans_trans).T * u - e1, u, check=False,
-    #                   simplify=False, force=True)
-    # dist = u.subs(sol).T * m_trans_absorb
-    # Linear solve using solver() (which seems to be the fastest):
+    # We use solver() (which seems to be faster than sympy.linsolve() and sympy.solve()):
     ell = len(t) - len(t_absorb_idx)
     mat = sympy.SparseMatrix(ell, ell, {})
     for i in range(ell):
@@ -255,41 +212,37 @@ def stationary_dist(a, sleep_probs):
                 mat[i, j] -= m_trans_trans[i, j]
     dist = solver.inverse(mat, [0], list(range(ell))) * m_trans_absorb
 
-    t1 = time.clock() - t0
+    t1 = time.process_time() - t0
     print("Time to compute final answer: " + str(t1))
-
-    t2 = time.clock() - t1
-    dist = sympy.simplify(dist)
-    print("Time to simplify final answer: " + str(t2))
 
     return [t[i] for i in t_absorb_idx], dist
 
 
 if __name__ == "__main__":
-    # Unit test.
-    # a = [[1], [0]]  # 2-cycle
-    # a = [[1], [2], []]  # directed 3-path
+    graph_name = "4-clique"  # Change the name as necessary!
+    a = [[1, 2, 3], [0, 2, 3], [0, 1, 3], [0, 1, 2]]
+    # Possible graphs include:
+    # a = [[1], [0]]  # 2-clique, a.k.a. 2-path, a.k.a. 2-cycle
     # a = [[1], [0, 2], [1]]  # 3-path
-    # a = [[1, 2], [0, 2], [0, 1]]  # 3-cycle, a.k.a. 3-clique
+    # a = [[1, 2], [0, 2], [0, 1]]  # 3-clique, a.k.a. 3-cycle
     # a = [[1], [0, 2], [1, 3], [2]]  # 4-path
     # a = [[1, 3], [0, 2], [1, 3], [0, 2]]  # 4-cycle
-    a = [[1, 2, 3], [0, 2, 3], [0, 1, 3], [0, 1, 2]]  # 4-clique
+    # a = [[1, 2, 3], [0, 2, 3], [0, 1, 3], [0, 1, 2]]  # 4-clique
     sleep_probs = sympy.symbols(['q_{}'.format(x) for x in range(len(a)-1)])
-    # print(a)
-    # print(sleep_probs)
 
     sd = stationary_dist(a, sleep_probs)
-    # Save the result of the computation of the stationary distribution as a pickle.
-    # Change the name of the pickle as necessary!
-    with open('4-clique.pickle', 'wb') as outf:
-        outf.write(pickle.dumps(sd))
-
-    sympy.pprint(sd)
-
-    # Impose a timeout.
-    # signal.signal(signal.SIGALRM, signal_handler)
-    # signal.alarm(2000)  # impose a timeout of 2000 seconds
-    # try:
-    #    sympy.pprint(stationary_dist(a, sleep_rates))
-    # except OSError as msg:
-    #    print("Timed out")
+    out_path = os.path.join(os.path.dirname(__file__), 'data/')
+    with open(out_path + graph_name + '.pickle', 'wb') as out_file:
+        out_file.write(pickle.dumps(sd))
+    with open(out_path + graph_name + '-states.txt', 'w') as out_file:
+        for state in sd[0]:
+            out_file.write(str(state) + "\n")
+    with open(out_path + graph_name + '-distribution-latex.txt', 'w') as out_file:
+        for prob in sd[1]:
+            out_file.write(sympy.latex(prob) + "\n")
+    with open(out_path + graph_name + '-distribution.txt', 'w') as out_file:
+        for prob in sd[1]:
+            num, denom = sympy.fraction(sympy.factor(prob))
+            out_file.write(sympy.pretty(num) + "\n")
+            out_file.write("/\n")
+            out_file.write(sympy.pretty(denom) + "\n\n\n\n\n")
