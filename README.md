@@ -7,4 +7,4 @@ Code to compute the stationary distribution for the activated random walk on a c
 
 ``solver.py`` and ``progressbar.py`` are helper programs used for ``stationary_dist.py`` and are created by Hannah Cairns.
 
-The ``data `` folder contains stationary distributions and related information for some small graphs.
+The ``data`` folder contains stationary distributions and related information for some small graphs.
