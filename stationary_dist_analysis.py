@@ -65,7 +65,7 @@ def my_pretty(frac):
 
 
 if __name__ == "__main__":
-    graph_name = "2-clique"  # Change the name as necessary
+    graph_name = "4-clique"  # Change the name as necessary
     in_path = os.path.join(os.path.dirname(__file__), 'data/')
     with open(in_path + graph_name + '.pickle', 'rb') as in_file:
         sd = pickle.loads(in_file.read())
