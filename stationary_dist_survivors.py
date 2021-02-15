@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     out_path = os.path.join(os.path.dirname(__file__), 'data/')
 
-    # Output the one-point joint intensities (marginals) and pair correlations.
+    # Output the probability that at least k particles survive and the probability that exactly k particles survive.
     survivor_probs = [None] * (len(states[0]) + 1)
     with open(out_path + graph_name + '-survivors.txt', 'w') as out_file:
         for k in range(len(states[0]), -1, -1):
